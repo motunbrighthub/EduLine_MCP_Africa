@@ -309,6 +309,7 @@ def load_next_question():
     quiz["feedback"] = ""
     return True
 
+
 def submit_answer(choice_key: str):
     q = quiz["current_question"]
 
@@ -318,13 +319,23 @@ def submit_answer(choice_key: str):
     if choice_key == correct:
         quiz["score"] += 1
         if quiz["mode"] == "normal":
+            # Cluster increases on correct answer
             quiz["cluster"] = min(CLUSTER_LIMITS.get(quiz["subject"], quiz["cluster"] + 1), quiz["cluster"] + 1)
+
         quiz["feedback"] = " Correct! Great job."
+        # --- FIX: Ensure help button is hidden after correct answer ---
+        quiz["can_get_help"] = False
+
     else:
         if quiz["mode"] == "normal":
+            # Cluster decreases on incorrect answer
             quiz["cluster"] = max(MIN_CLUSTER, quiz["cluster"] - 1)
-        quiz["feedback"] = f" Wrong! Correct answer: {correct}"
+
+        quiz["feedback"] = f" Wrong! Correct answer: {correct}. Click 'Ask AI Tutor' below."
         quiz["weak_clusters"][cluster_at_time] = quiz["weak_clusters"].get(cluster_at_time, 0) + 1
+
+        # --- CRITICAL FIX: Set the flag to show the help button ---
+        quiz["can_get_help"] = True
 
     quiz["submitted"] = True
 
@@ -568,27 +579,40 @@ elif app["stage"] == "quiz":
             st.rerun()
 
     if quiz["submitted"]:
-        if "" in quiz["feedback"]:
+
+        if "Correct" in quiz["feedback"]:
             st.success(quiz["feedback"])
+            quiz["can_get_help"] = False
         else:
             st.error(quiz["feedback"])
-            if MCP_AVAILABLE:
-                if st.button(" Ask AI Tutor for Help"):
-                    chat["active_topic"] = topic_name
-                    chat["active_subject"] = quiz["subject"]
-                    chat["messages"] = []
-                    app["stage"] = "help"
+
+
+            if quiz.get("can_get_help"):
+                st.warning("Struggling with this concept? Get personalized help!")
+
+                topic_name = get_cluster_topic(quiz["subject"], quiz["cluster"])
+
+                if st.button(" Ask AI Tutor for Help ", key="ai_help_trigger"):
+                    st.session_state.chat = {
+                        "active_topic": topic_name,  # Use the topic name from the function
+                        "active_subject": quiz["subject"],
+                        "messages": [],  # Start a fresh conversation
+                    }
+                    st.session_state.app["stage"] = "help"
                     st.rerun()
 
         if st.button(" Next Question", type="primary"):
+
+            quiz["can_get_help"] = False
+
             quiz["question_index"] += 1
             quiz["current_question"] = None
             quiz["submitted"] = False
             quiz["feedback"] = ""
+
             if quiz["question_index"] >= quiz["total_questions"]:
                 finish_and_record()
             st.rerun()
-
 # ==============================
 # STAGE: AI Help Chat
 # ==============================

@@ -8,10 +8,11 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 import os
+from fastmcp import Client
+from typing import List, Dict
 
-# 💡 IMPORTANT: Swapping OpenAI for Groq SDK
-from groq import Groq  # <-- New Groq import
 
+from groq import Groq
 # ==============================
 # Configuration
 # ==============================
@@ -31,7 +32,7 @@ MIN_CLUSTER = 0
 
 # Initialize Groq client (requires GROQ_API_KEY env variable)
 try:
-    # Try streamlit secrets first, then environment variable
+
     api_key = None
     try:
         api_key = st.secrets.get("GROQ_API_KEY")
@@ -190,7 +191,11 @@ df_all = load_questions(QUESTIONS_CSV)
 if "app" not in st.session_state:
     st.session_state.app = {
         "stage": "auth",
-        "auth_mode": "login",
+        "auth_mode": "loginot in quiz["weak_only_list"]:
+            target_cluster = random.choice(quiz["weak_only_list"])
+            quiz["cluster"] = target_cluster
+
+    subset = df_subj[df_sub",
         "student_uuid": None,
         "name": "",
         "area": "",
@@ -273,20 +278,30 @@ def load_next_question():
     df_subj = df_all[df_all["Subject"] == quiz["subject"]].reset_index(drop=True)
     target_cluster = quiz["cluster"]
 
+    # 1. Logic to handle 'weak_only' mode and ensure cluster is valid
     if quiz["mode"] == "weak_only" and quiz["weak_only_list"]:
+        # If the target cluster is not in the weak list, pick a valid weak cluster
         if target_cluster not in quiz["weak_only_list"]:
+            # Ensure the list isn't empty before choosing
+            if not quiz["weak_only_list"]:
+                return False  # No weak questions left
             target_cluster = random.choice(quiz["weak_only_list"])
             quiz["cluster"] = target_cluster
 
+    # 2. Correctly define the subset based on the target_cluster
     subset = df_subj[df_subj["Cluster"] == target_cluster].drop(quiz["used_indices"], errors="ignore")
 
+    # 3. Fallback logic if the primary subset is empty
     if subset.empty:
         if quiz["mode"] == "weak_only" and quiz["weak_only_list"]:
+            # Fallback to any remaining weak question across all weak clusters
             subset = df_subj[df_subj["Cluster"].isin(quiz["weak_only_list"])].drop(quiz["used_indices"],
                                                                                    errors="ignore")
         else:
+            # Fallback to any remaining question in the subject
             subset = df_subj.drop(quiz["used_indices"], errors="ignore")
 
+    # The rest of the function remains the same, handling the final selection and state update
     if subset.empty:
         return False
 
@@ -296,7 +311,6 @@ def load_next_question():
     quiz["submitted"] = False
     quiz["feedback"] = ""
     return True
-
 
 def submit_answer(choice_key: str):
     q = quiz["current_question"]
@@ -329,54 +343,43 @@ def finish_and_record():
     quiz["started"] = False
     app["stage"] = "finished"
 
-# 💡 MODIFIED: Switched to Groq API call and updated model
-def get_ai_help(topic: str, subject: str, user_question: str = None, conversation_history: List[Dict] = None):
-    """Get AI explanation using Groq's Mixtral 8x7b"""
-    if not MCP_AVAILABLE:
-        return "AI tutor is not available. Please set up GROQ_API_KEY."
 
-    # --- System Prompt Definition (MUST be here) ---
-    system_prompt = f"""You are EDULINE's AI tutor helping a student understand {subject} concepts. 
-The student is struggling with: {topic}
+# The URL of your deployed FastMCP server
+MCP_SERVER_URL = "https://EduLineMCP-Africa.fastmcp.app/mcp"
+mcp_client = Client(url=MCP_SERVER_URL)
 
-Your role:
-- Break down complex concepts into simple, easy-to-understand explanations
-- Use real-world examples and analogies relevant to a {app.get('area', 'general')} setting
-- Be encouraging and patient
-- Adapt to high school level understanding
-- Keep responses concise (2-3 paragraphs max unless asked for more detail)
-- Use clear formatting with bullet points when listing steps or concepts
-"""
-    # ---------------------------------------------
+# app.py (Modified get_ai_help function)
 
-    if user_question is None:
-        user_question = f"Can you explain {topic} in {subject} in a simple way? I'm having trouble understanding it."
+from fastmcp import Client
+from typing import List, Dict
+
+
+# ... (MCP_SERVER_URL and mcp_client initialization remains the same)
+
+def get_ai_help(topic: str, subject: str, user_question: str = None, conversation_history: List[Dict] = None) -> str:
+    """
+    Calls the remote FastMCP server tool, including the student's location context.
+    NOTE: 'app' is the st.session_state.app dictionary initialized earlier in app.py.
+    """
+
+    # --- New Logic: Get Location/Area from session state ---
+    student_location = app.get('area', 'general')
+    # --------------------------------------------------------
 
     try:
-        # Build messages array with conversation history
-        # NOTE: system_prompt is correctly used here because it is defined above
-        messages = [{"role": "system", "content": system_prompt}]
-
-        # Add conversation history if exists
-        if conversation_history:
-            messages.extend(conversation_history)
-
-        # Add current user question
-        messages.append({"role": "user", "content": user_question})
-
-        # Call Groq API
-        response = groq_client.chat.completions.create(
-            #  NEW FIX APPLIED: Using a current, highly stable Groq model
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            max_tokens=800,
-            temperature=0.7,
+        response = mcp_client.call_tool(
+            tool_name="tutor_explanation",
+            topic=topic,
+            subject=subject,
+            user_question=user_question,
+            conversation_history=conversation_history,
+            # --- CRITICAL CHANGE: Pass the location context ---
+            location=student_location
         )
-        return response.choices[0].message.content
-
+        return response.result
     except Exception as e:
-        return f"Sorry, I couldn't generate a response: {str(e)}"
-
+        print(f"MCP Call Failed: {e}")
+        return f"Error connecting to AI Tutor server: {e}"
 # ==============================
 # UI: Top header
 # ==============================

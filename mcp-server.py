@@ -69,14 +69,13 @@ Remember: You're helping a Nigerian high school student who just got a question 
     # Add current user question
     messages.append({"role": "user", "content": user_question})
 
+
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # ✅ CHANGED: Better model for education
-            messages=messages,
-            max_tokens=1000,  # ✅ INCREASED: More room for detailed explanations
-            temperature=0.7,
-            top_p=0.9
-        )
+        response = mcp_client.call_tool(
+            name="tutor_explanation",
+            model="llama-3.3-70b-versatile",
+            arguments={"topic": topic, "subject": subject},
+
         return response.choices[0].message.content
 
     except Exception as e:

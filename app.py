@@ -9,45 +9,25 @@ from datetime import datetime
 from typing import Dict, List
 import os
 from fastmcp import Client
-from typing import List, Dict
 
-
-from groq import Groq
 # ==============================
 # Configuration
 # ==============================
 st.set_page_config(
     page_title="EDULINE Adaptive Quiz",
-    page_icon="logo_favicon1.png",
+    page_icon="🎓",
     layout="centered",
 )
 
 BASE_DIR = os.path.dirname(__file__)
-
 QUESTIONS_CSV = os.path.join(BASE_DIR, "cleaned_mcqs_clustered.csv")
 DB_PATH = "eduline.db"
 DEFAULT_TOTAL_Q = 5
 CLUSTER_LIMITS = {"English": 8, "Mathematics": 8, "Physics": 8, "Chemistry": 8}
 MIN_CLUSTER = 0
 
-# Initialize Groq client (requires GROQ_API_KEY env variable)
-try:
-
-    api_key = None
-    try:
-        api_key = st.secrets.get("GROQ_API_KEY")
-    except:
-        api_key = os.environ.get("GROQ_API_KEY")
-
-    if api_key:
-        groq_client = Groq(api_key=api_key)  # <-- Initialize Groq Client
-        MCP_AVAILABLE = True  # Model Compute Provider available
-    else:
-        MCP_AVAILABLE = False
-        st.warning("GROQ_API_KEY not found. AI Tutor will be disabled.")
-except Exception as e:
-    st.error(f"Groq initialization error: {e}")
-    MCP_AVAILABLE = False
+# Check if MCP server is available
+MCP_AVAILABLE = True  # Assume available, will handle errors in get_ai_help
 
 # ==============================
 # CLUSTER TOPIC MAPPING
@@ -108,7 +88,6 @@ CLUSTER_TOPICS = {
         "Chemistry": "Ions & Trioxocarbonates"
     }
 }
-
 
 # ==============================
 # Database utils
@@ -172,7 +151,6 @@ def save_result(conn, student_uuid: str, subject: str, score: int, total_questio
 # Initialize DB
 conn = init_db(DB_PATH)
 
-
 # ==============================
 # Load questions
 # ==============================
@@ -191,12 +169,11 @@ df_all = load_questions(QUESTIONS_CSV)
 if "app" not in st.session_state:
     st.session_state.app = {
         "stage": "auth",
-        "auth_mode": "login",  # <-- This line was originally broken
+        "auth_mode": "login",
         "student_uuid": None,
         "name": "",
         "area": "",
     }
-
 
 if "quiz" not in st.session_state:
     st.session_state.quiz = {
@@ -226,7 +203,6 @@ app = st.session_state.app
 quiz = st.session_state.quiz
 chat = st.session_state.chat
 
-
 # ==============================
 # Helpers
 # ==============================
@@ -235,16 +211,13 @@ def gen_uuid() -> str:
 
 
 def get_cluster_topic(subject: str, cluster_id) -> str:
-    # 1. Convert cluster_id to integer (safe way to handle string inputs)
     try:
         cluster_key = int(cluster_id)
     except ValueError:
-        return f"Cluster {cluster_id}"  # Cannot convert to int
+        return f"Cluster {cluster_id}"
 
-    # 2. Ensure subject capitalization matches keys in CLUSTER_TOPICS
     subject_key = subject.capitalize()
 
-    # 3. Perform the lookup using the standardized keys
     if cluster_key in CLUSTER_TOPICS and subject_key in CLUSTER_TOPICS[cluster_key]:
         return CLUSTER_TOPICS[cluster_key][subject_key]
 
@@ -275,30 +248,22 @@ def load_next_question():
     df_subj = df_all[df_all["Subject"] == quiz["subject"]].reset_index(drop=True)
     target_cluster = quiz["cluster"]
 
-    # 1. Logic to handle 'weak_only' mode and ensure cluster is valid
     if quiz["mode"] == "weak_only" and quiz["weak_only_list"]:
-        # If the target cluster is not in the weak list, pick a valid weak cluster
         if target_cluster not in quiz["weak_only_list"]:
-            # Ensure the list isn't empty before choosing
             if not quiz["weak_only_list"]:
-                return False  # No weak questions left
+                return False
             target_cluster = random.choice(quiz["weak_only_list"])
             quiz["cluster"] = target_cluster
 
-    # 2. Correctly define the subset based on the target_cluster
     subset = df_subj[df_subj["Cluster"] == target_cluster].drop(quiz["used_indices"], errors="ignore")
 
-    # 3. Fallback logic if the primary subset is empty
     if subset.empty:
         if quiz["mode"] == "weak_only" and quiz["weak_only_list"]:
-            # Fallback to any remaining weak question across all weak clusters
             subset = df_subj[df_subj["Cluster"].isin(quiz["weak_only_list"])].drop(quiz["used_indices"],
                                                                                    errors="ignore")
         else:
-            # Fallback to any remaining question in the subject
             subset = df_subj.drop(quiz["used_indices"], errors="ignore")
 
-    # The rest of the function remains the same, handling the final selection and state update
     if subset.empty:
         return False
 
@@ -312,29 +277,20 @@ def load_next_question():
 
 def submit_answer(choice_key: str):
     q = quiz["current_question"]
-
     correct = str(q["Answer"]).strip().upper()
     cluster_at_time = quiz["cluster"]
 
     if choice_key == correct:
         quiz["score"] += 1
         if quiz["mode"] == "normal":
-            # Cluster increases on correct answer
             quiz["cluster"] = min(CLUSTER_LIMITS.get(quiz["subject"], quiz["cluster"] + 1), quiz["cluster"] + 1)
-
-        quiz["feedback"] = " Correct! Great job."
-        # --- FIX: Ensure help button is hidden after correct answer ---
+        quiz["feedback"] = "✅ Correct! Great job."
         quiz["can_get_help"] = False
-
     else:
         if quiz["mode"] == "normal":
-            # Cluster decreases on incorrect answer
             quiz["cluster"] = max(MIN_CLUSTER, quiz["cluster"] - 1)
-
-        quiz["feedback"] = f" Wrong! Correct answer: {correct}. Click 'Ask AI Tutor' below."
+        quiz["feedback"] = f"❌ Wrong! Correct answer: {correct}. Click 'Ask AI Tutor' below."
         quiz["weak_clusters"][cluster_at_time] = quiz["weak_clusters"].get(cluster_at_time, 0) + 1
-
-        # --- CRITICAL FIX: Set the flag to show the help button ---
         quiz["can_get_help"] = True
 
     quiz["submitted"] = True
@@ -352,31 +308,18 @@ def finish_and_record():
     app["stage"] = "finished"
 
 
-# The URL of your deployed FastMCP server
+# ==============================
+# MCP Client Setup
+# ==============================
 MCP_SERVER_URL = "https://EduLineMCP-Africa.fastmcp.app/mcp"
 mcp_client = Client(MCP_SERVER_URL)
 
-# app.py (Modified get_ai_help function)
-
-from fastmcp import Client
-from typing import List, Dict
-
-
-# ... (MCP_SERVER_URL and mcp_client initialization remains the same)
 
 def get_ai_help(topic: str, subject: str, user_question: str = None, conversation_history: List[Dict] = None) -> str:
     """
     Calls the remote FastMCP server tool, including the student's location context.
-    NOTE: 'app' is the st.session_state.app dictionary initialized earlier in app.py.
     """
-
-    # --- New Logic: Get Location/Area from session state ---
     student_location = app.get('area', 'general')
-    # --------------------------------------------------------
-    # The problematic line, likely inside a function like get_ai_help()
-
-        # ... any other arguments
-    
 
     try:
         response = mcp_client.call_tool(
@@ -385,13 +328,14 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
             subject=subject,
             user_question=user_question,
             conversation_history=conversation_history,
-            # --- CRITICAL CHANGE: Pass the location context ---
             location=student_location
         )
         return response.result
     except Exception as e:
         print(f"MCP Call Failed: {e}")
-        return f"Error connecting to AI Tutor server: {e}"
+        return f"❌ Error connecting to AI Tutor server. Please try again later.\n\nDetails: {str(e)}"
+
+
 # ==============================
 # UI: Top header
 # ==============================
@@ -406,7 +350,7 @@ if app.get("student_uuid") and app["stage"] != "auth":
     if app.get("area"):
         st.sidebar.markdown(f"**Area:** {app['area']}")
 
-    if st.sidebar.button(" Show Past Results"):
+    if st.sidebar.button("📊 Show Past Results"):
         try:
             df_results = pd.read_sql_query(
                 "SELECT subject, score, total_questions, taken_at FROM results WHERE student_uuid=?",
@@ -418,7 +362,7 @@ if app.get("student_uuid") and app["stage"] != "auth":
         except Exception as e:
             st.sidebar.error(f"Failed to fetch results: {e}")
 
-    if st.sidebar.button(" Logout"):
+    if st.sidebar.button("🚪 Logout"):
         app.update({
             "stage": "auth",
             "auth_mode": "login",
@@ -432,7 +376,7 @@ if app.get("student_uuid") and app["stage"] != "auth":
 # STAGE: Auth (Login/Register)
 # ==============================
 if app["stage"] == "auth":
-    tab1, tab2 = st.tabs([" Login", " Register"])
+    tab1, tab2 = st.tabs(["🔐 Login", "✨ Register"])
 
     with tab1:
         st.markdown("### Welcome back! Login to continue")
@@ -474,7 +418,7 @@ if app["stage"] == "auth":
                     app["name"] = reg_name.strip()
                     app["area"] = reg_area
                     st.success(f"✅ Account created! Your Student ID is: **{student_uuid}**")
-                    st.info(" Save this ID - you'll need it to login!")
+                    st.info("💡 Save this ID - you'll need it to login!")
                     app["stage"] = "subject"
                     st.rerun()
                 except Exception as e:
@@ -484,35 +428,30 @@ if app["stage"] == "auth":
 # STAGE: Subject selection
 # ==============================
 elif app["stage"] == "subject":
-    st.markdown(f"#### Welcome{', ' + app['name'] if app.get('name') else ''}! ")
+    st.markdown(f"#### Welcome{', ' + app['name'] if app.get('name') else ''}! 👋")
     st.caption(f"ID: **{app['student_uuid']}** | Area: **{app['area']}**")
 
-    # Subject Filtering: Only English, Mathematics, Physics, Chemistry
     allowed_subjects = ["English", "Mathematics", "Physics", "Chemistry"]
-    subject = st.selectbox(" Select subject:", options=allowed_subjects)
-
-    total_q = st.slider(" How many questions?", 3, 20, DEFAULT_TOTAL_Q)
+    subject = st.selectbox("📚 Select subject:", options=allowed_subjects)
+    total_q = st.slider("❓ How many questions?", 3, 20, DEFAULT_TOTAL_Q)
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button(" Start Adaptive Quiz", type="primary"):
+        if st.button("🚀 Start Adaptive Quiz", type="primary"):
             if subject in allowed_subjects:
                 reset_quiz_state(subject, total_q, mode="normal")
                 app["stage"] = "quiz"
                 st.rerun()
             else:
-                st.error("Please select a valid subject (English, Mathematics, Physics, or Chemistry).")
+                st.error("Please select a valid subject.")
 
     with col2:
-        # Check for past quiz results to enable 'Retry Weak Areas'
         has_weak_areas = any(v > 0 for v in quiz.get("weak_clusters", {}).values())
-
-        if st.button(" Retry Weak Areas", disabled=not has_weak_areas):
+        if st.button("🎯 Retry Weak Areas", disabled=not has_weak_areas):
             weak_list = [c for c, m in quiz["weak_clusters"].items() if m > 0]
             if not weak_list:
                 st.info("No recorded weak areas yet. Try a normal quiz first!")
             else:
-                # Ensure the selected subject is used, even in weak mode
                 reset_quiz_state(subject, total_q, mode="weak_only", weak_only_list=weak_list)
                 app["stage"] = "quiz"
                 st.rerun()
@@ -526,9 +465,9 @@ elif app["stage"] == "quiz":
         app["stage"] = "subject"
         st.rerun()
 
-    st.markdown(f"###  {quiz['subject']}")
+    st.markdown(f"### 📘 {quiz['subject']}")
     st.caption(
-        f"{' Weak Areas Mode' if quiz['mode'] == 'weak_only' else ' Adaptive Mode'} | Student: {app['student_uuid']}")
+        f"{'🎯 Weak Areas Mode' if quiz['mode'] == 'weak_only' else '🚀 Adaptive Mode'} | Student: {app['student_uuid']}")
 
     if quiz["current_question"] is None:
         ok = load_next_question()
@@ -543,7 +482,7 @@ elif app["stage"] == "quiz":
 
     q = quiz["current_question"]
     topic_name = get_cluster_topic(quiz["subject"], quiz["cluster"])
-    st.info(f" **Topic:** {topic_name}")
+    st.info(f"📌 **Topic:** {topic_name}")
 
     st.markdown(f"### {q['Question']}")
 
@@ -554,16 +493,16 @@ elif app["stage"] == "quiz":
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        if st.button(" Submit", type="primary"):
+        if st.button("✅ Submit", type="primary"):
             submit_answer(choice)
             st.rerun()
     with col2:
-        if st.button(" Quit Quiz"):
+        if st.button("🚪 Quit Quiz"):
             finish_and_record()
             st.warning("Quiz ended. Progress saved!")
             st.rerun()
     with col3:
-        if st.button(" Restart"):
+        if st.button("🔄 Restart"):
             quiz.update({
                 "started": False,
                 "subject": None,
@@ -583,32 +522,27 @@ elif app["stage"] == "quiz":
             st.rerun()
 
     if quiz["submitted"]:
-
         if "Correct" in quiz["feedback"]:
             st.success(quiz["feedback"])
             quiz["can_get_help"] = False
         else:
             st.error(quiz["feedback"])
 
-
             if quiz.get("can_get_help"):
                 st.warning("Struggling with this concept? Get personalized help!")
-
                 topic_name = get_cluster_topic(quiz["subject"], quiz["cluster"])
 
-                if st.button(" Ask AI Tutor for Help ", key="ai_help_trigger"):
+                if st.button("🤖 Ask AI Tutor for Help", key="ai_help_trigger"):
                     st.session_state.chat = {
-                        "active_topic": topic_name,  # Use the topic name from the function
+                        "active_topic": topic_name,
                         "active_subject": quiz["subject"],
-                        "messages": [],  # Start a fresh conversation
+                        "messages": [],
                     }
                     st.session_state.app["stage"] = "help"
                     st.rerun()
 
-        if st.button(" Next Question", type="primary"):
-
+        if st.button("➡️ Next Question", type="primary"):
             quiz["can_get_help"] = False
-
             quiz["question_index"] += 1
             quiz["current_question"] = None
             quiz["submitted"] = False
@@ -617,12 +551,13 @@ elif app["stage"] == "quiz":
             if quiz["question_index"] >= quiz["total_questions"]:
                 finish_and_record()
             st.rerun()
+
 # ==============================
 # STAGE: AI Help Chat
 # ==============================
 elif app["stage"] == "help":
-    st.markdown(f"###  AI Tutor - {chat['active_subject']}")
-    st.info(f" Getting help with: **{chat['active_topic']}**")
+    st.markdown(f"### 🤖 AI Tutor - {chat['active_subject']}")
+    st.info(f"📌 Getting help with: **{chat['active_topic']}**")
 
     # Display chat history
     for msg in chat["messages"]:
@@ -631,28 +566,22 @@ elif app["stage"] == "help":
 
     # Chat input
     if prompt := st.chat_input("Ask me anything about this topic...", key="ai_tutor_chat_input"):
-        # Add user message
         user_message = {"role": "user", "content": prompt}
         chat["messages"].append(user_message)
 
-        # Display the new user message
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Get AI response
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                # Pass *all* current messages for context, including the latest user message
                 response = get_ai_help(
                     chat["active_topic"],
                     chat["active_subject"],
-                    user_question=prompt, # The prompt is the user's latest question
-                    conversation_history=chat["messages"][:-1] # Pass history *excluding* the latest prompt
+                    user_question=prompt,
+                    conversation_history=chat["messages"][:-1]
                 )
                 st.markdown(response)
-                # Add assistant message to history
                 chat["messages"].append({"role": "assistant", "content": response})
-
 
         st.rerun()
 
@@ -663,7 +592,7 @@ elif app["stage"] == "help":
             app["stage"] = "quiz"
             st.rerun()
     with col2:
-        if st.button(" Main Menu"):
+        if st.button("🏠 Main Menu"):
             app["stage"] = "subject"
             st.rerun()
 
@@ -672,21 +601,21 @@ elif app["stage"] == "help":
 # ==============================
 elif app["stage"] == "finished":
     st.balloons()
-    st.markdown("##  Quiz Completed!")
+    st.markdown("## 🎉 Quiz Completed!")
 
     score_pct = (quiz['score'] / quiz['total_questions']) * 100
     st.metric("Final Score", f"{quiz['score']} / {quiz['total_questions']}", f"{score_pct:.0f}%")
     st.progress(1.0)
 
     if quiz["weak_clusters"]:
-        st.markdown("###  Areas for Improvement")
+        st.markdown("### 📊 Areas for Improvement")
         for cl, misses in sorted(quiz["weak_clusters"].items(), key=lambda x: -x[1]):
             topic = get_cluster_topic(quiz["subject"], cl)
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.write(f"- **{topic}**: {misses} mistake(s)")
             with col2:
-                if MCP_AVAILABLE and st.button(" Get Help", key=f"help_{cl}"):
+                if MCP_AVAILABLE and st.button("🤖 Get Help", key=f"help_{cl}"):
                     chat["active_topic"] = topic
                     chat["active_subject"] = quiz["subject"]
                     chat["messages"] = []
@@ -695,7 +624,7 @@ elif app["stage"] == "finished":
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button(" Practice Weak Areas", type="primary"):
+        if st.button("🎯 Practice Weak Areas", type="primary"):
             weak_list = [c for c, m in quiz["weak_clusters"].items() if m > 0]
             if not weak_list:
                 st.info("No weak areas to practice!")
@@ -706,6 +635,6 @@ elif app["stage"] == "finished":
                 st.rerun()
 
     with col2:
-        if st.button(" Choose Another Subject"):
+        if st.button("📚 Choose Another Subject"):
             app["stage"] = "subject"
             st.rerun()

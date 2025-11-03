@@ -343,7 +343,7 @@ def finish_and_record():
 
 # The URL of your deployed FastMCP server
 MCP_SERVER_URL = "https://EduLineMCP-Africa.fastmcp.app/mcp"
-mcp_client = Client(url=MCP_SERVER_URL)
+mcp_client = Client(MCP_SERVER_URL)
 
 # app.py (Modified get_ai_help function)
 

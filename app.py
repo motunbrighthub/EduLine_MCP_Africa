@@ -191,15 +191,12 @@ df_all = load_questions(QUESTIONS_CSV)
 if "app" not in st.session_state:
     st.session_state.app = {
         "stage": "auth",
-        "auth_mode": "loginot in quiz["weak_only_list"]:
-            target_cluster = random.choice(quiz["weak_only_list"])
-            quiz["cluster"] = target_cluster
-
-    subset = df_subj[df_sub",
+        "auth_mode": "login",  # <-- This line was originally broken
         "student_uuid": None,
         "name": "",
         "area": "",
     }
+
 
 if "quiz" not in st.session_state:
     st.session_state.quiz = {

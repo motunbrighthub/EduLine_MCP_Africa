@@ -373,6 +373,10 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
     # --- New Logic: Get Location/Area from session state ---
     student_location = app.get('area', 'general')
     # --------------------------------------------------------
+    # The problematic line, likely inside a function like get_ai_help()
+
+        # ... any other arguments
+    )
 
     try:
         response = mcp_client.call_tool(

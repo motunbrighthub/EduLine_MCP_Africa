@@ -376,7 +376,7 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
     # The problematic line, likely inside a function like get_ai_help()
 
         # ... any other arguments
-    )
+    
 
     try:
         response = mcp_client.call_tool(

@@ -565,5 +565,7 @@ streamlit run app.py
 ```
 
 ---
+EDULINE-SLIDE URL: https://docs.google.com/presentation/d/1V9o3PoPlCzZn_BJmr6mxNQnUpzvBnt3x/edit?usp=sharing&ouid=114517254146853387883&rtpof=true&sd=true
+EDULINE VIDEO CURL:https://drive.google.com/file/d/1M4e8f4j6hG1l-6Cz0BOzSH4s4YOBuXIy/view?usp=drive_link
 
 **Made with love for West African students**

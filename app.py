@@ -33,7 +33,7 @@ GEMINI_MODEL_NAME = "gemini-1.5-flash"
 try:
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        api_key = st.secrets.get("GOOGLE_API_KEY")
+        api_key = st.secrets["GOOGLE_API_KEY"]
 
     if api_key:
         genai.configure(api_key=api_key)

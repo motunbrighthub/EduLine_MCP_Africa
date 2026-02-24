@@ -8,8 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 import os
-from groq import Groq  # <-- New Groq import
-
+import google.generativeai as genai
 # ==============================
 # Config
 # ==============================

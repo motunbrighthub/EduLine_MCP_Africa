@@ -29,31 +29,23 @@ MIN_CLUSTER = 0
 
 
 MCP_AVAILABLE = False
-GROQ_MODEL = "mixtral-8x7b-32768"
+GEMINI_MODEL_NAME = "gemini-1.5-flash" 
 
 try:
-
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-
-        api_key = st.secrets.get("GROQ_API_KEY")
+    my_api_key = os.environ.get("GOOGLE_API_KEY")
+    if not my_api_key:
+        api_key = st.secrets.get("GOOGLE_API_KEY")
 
     if api_key:
-        groq_client = Groq(api_key=api_key)
+        genai.configure(api_key=my_api_key)
+        # Create the model instance
+        gemini_client = genai.GenerativeModel(GEMINI_MODEL_NAME)
         MCP_AVAILABLE = True
     else:
-
-        st.warning("GROQ_API_KEY not found. AI Tutor will be disabled.")
-
+        st.warning("API_KEY not found. AI Tutor will be disabled.")
 except Exception as e:
-
     st.error(f"AI Tutor initialization failed: {e}")
     MCP_AVAILABLE = False
-
-
-if not MCP_AVAILABLE:
-    st.error("AI Tutor (Groq) is disabled. Please configure the **GROQ_API_KEY**.")
-
 CLUSTER_TOPICS = {
     0: {
         "English": "Formal Letters & Vocabulary",
@@ -323,50 +315,37 @@ def finish_and_record():
 
     # 💡 MODIFIED: Switched to Groq API call and updated model
 def get_ai_help(topic: str, subject: str, user_question: str = None, conversation_history: List[Dict] = None):
-        """Get AI explanation using Groq's Mixtral 8x7b"""
-        if not MCP_AVAILABLE:
-            return "AI tutor is not available. Please set up GROQ_API_KEY."
+    if not MCP_AVAILABLE:
+        return "AI tutor is not available. Please set up GOOGLE_API_KEY."
 
-        system_prompt = f"""You are EDULINE's AI tutor helping a student understand {subject} concepts. 
-    The student is struggling with: {topic}
+    system_prompt = f"""You are EDULINE's AI tutor helping a student understand {subject}. 
+    The student is struggling with: {topic}.
+    - Break down concepts into simple explanations.
+    - Use real-world examples relevant to a {st.session_state.app.get('area', 'general')} setting.
+    - Keep responses concise (2-3 paragraphs max)."""
 
-    Your role:
-    - Break down complex concepts into simple, easy-to-understand explanations
-    - Use real-world examples and analogies relevant to a {app.get('area', 'general')} setting
-    - Be encouraging and patient
-    - Adapt to high school level understanding
-    - Keep responses concise (2-3 paragraphs max unless asked for more detail)
-    - Use clear formatting with bullet points when listing steps or concepts
-    """
-        # ---------------------------------------------
+    try:
+        # Convert history format for Gemini
+        formatted_history = []
+        if conversation_history:
+            for msg in conversation_history:
+                role = "model" if msg["role"] == "assistant" else "user"
+                formatted_history.append({"role": role, "parts": [msg["content"]]})
 
-        if user_question is None:
-            user_question = f"Can you explain {topic} in {subject} in a simple way? I'm having trouble understanding it."
-
-        try:
-
-            messages = [{"role": "system", "content": system_prompt}]
-
-
-            if conversation_history:
-                messages.extend(conversation_history)
-
-
-            messages.append({"role": "user", "content": user_question})
-
-            # Call Groq API
-            # Call Groq API
-            response = groq_client.chat.completions.create(
-
-                model="llama-3.1-8b-instant",
-                messages=messages,
-                max_tokens=800,
+        # Start a chat session with the system prompt context
+        # In Gemini 1.5, it prepend the system prompt to the first user message or use system_instruction
+        full_prompt = f"{system_prompt}\n\nStudent Question: {user_question}"
+        
+        response = gemini_client.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=500,
                 temperature=0.7,
             )
-            return response.choices[0].message.content
-
-        except Exception as e:
-            return f"Sorry, I couldn't generate a response: {str(e)}"
+        )
+        return response.text
+    except Exception as e:
+        return f"Sorry, I couldn't generate a response: {str(e)}"
 
 if st.sidebar.button(" Logout"):
         app.update({

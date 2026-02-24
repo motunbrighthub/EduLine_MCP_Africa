@@ -32,12 +32,12 @@ MCP_AVAILABLE = False
 GEMINI_MODEL_NAME = "gemini-1.5-flash" 
 
 try:
-    my_api_key = os.environ.get("GOOGLE_API_KEY")
-    if not my_api_key:
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
         api_key = st.secrets.get("GOOGLE_API_KEY")
 
     if api_key:
-        genai.configure(api_key=my_api_key)
+        genai.configure(api_key=api_key)
         # Create the model instance
         gemini_client = genai.GenerativeModel(GEMINI_MODEL_NAME)
         MCP_AVAILABLE = True

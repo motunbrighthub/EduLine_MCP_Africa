@@ -18,7 +18,7 @@ page_icon="logo_favicon1.png",
 layout="centered",
 )
 BASE_DIR = os.path.dirname(file)
-NOTE: Using the user's specific CSV name
+# NOTE: Using the user's specific CSV name
 QUESTIONS_CSV = os.path.join(BASE_DIR, "cleaned_mcqs_clustered.csv")
 DB_PATH = "eduline.db"
 DEFAULT_TOTAL_Q = 5

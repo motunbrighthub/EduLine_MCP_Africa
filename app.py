@@ -9,9 +9,9 @@ from datetime import datetime
 from typing import Dict, List
 import os
 import google.generativeai as genai
-==============================
+# ==============================
 Config
-==============================
+# ==============================
 st.set_page_config(
 page_title="EDULINE Adaptive Quiz",
 page_icon="logo_favicon1.png",

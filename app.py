@@ -224,17 +224,28 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
     if not MCP_AVAILABLE:
         return "AI tutor is not available. Please set up GOOGLE_API_KEY."
     
-    system_prompt = f"""You are EDULINE's AI tutor helping a student understand {subject}. 
-    The student is struggling with: {topic}.
-    - Break down concepts into simple explanations.
-    - Use real-world examples relevant to a {app.get('area', 'general')} setting.
-    - Keep responses concise (2-3 paragraphs max)."""
+   system_prompt = f"""
+You are EDULINE's AI tutor helping a student understand {subject}.
+
+The student is struggling with: {topic}.
+
+Instructions:
+- Explain concepts step-by-step.
+- Start with a simple definition.
+- Break complex ideas into smaller parts.
+- Use real-world examples relevant to a {app.get('area', 'general')} setting.
+- Include worked examples when appropriate.
+- Explain any formulas or calculations involved.
+- End with a short summary.
+- Aim for 5-8 detailed paragraphs when necessary.
+- Adapt the depth of explanation to the student's question.
+"""
 
     try:
         full_prompt = f"{system_prompt}\n\nStudent Question: {user_question}"
         response = gemini_client.generate_content(
             full_prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=500, temperature=0.7)
+            generation_config=genai.types.GenerationConfig(max_output_tokens=2000, temperature=0.7)
         )
         return response.text
     except Exception as e:

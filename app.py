@@ -236,7 +236,7 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
     - Include worked examples when appropriate.
     - Explain any formulas or calculations involved.
     - End with a short summary.
-    - Aim for 5 detailed paragraphs when necessary.
+    - Aim for 5-8 detailed paragraphs when necessary.
     - Adapt the depth of explanation to the student's question.
     """
     
@@ -244,7 +244,7 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
         full_prompt = f"{system_prompt}\n\nStudent Question: {user_question}"
         response = gemini_client.generate_content(
             full_prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=1000, temperature=0.6)
+            generation_config=genai.types.GenerationConfig(max_output_tokens=15000, temperature=0.6)
         )
         return response.text
     except Exception as e:

@@ -223,8 +223,7 @@ def finish_and_record():
 def get_ai_help(topic: str, subject: str, user_question: str = None, conversation_history: List[Dict] = None):
     if not MCP_AVAILABLE:
         return "AI tutor is not available. Please set up GOOGLE_API_KEY."
-    
-   system_prompt = f"""
+system_prompt = f"""
 You are EDULINE's AI tutor helping a student understand {subject}.
 
 The student is struggling with: {topic}.

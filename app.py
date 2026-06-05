@@ -246,9 +246,9 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
             full_prompt,
             generation_config=genai.types.GenerationConfig(max_output_tokens=2000, temperature=0.7)
         )
-    return response.text
+        return response.text
     except Exception as e:
-    return f"Sorry, I couldn't generate a response: {str(e)}"
+        return f"Sorry, I couldn't generate a response: {str(e)}"
 
 # Global Logout
 if app["student_uuid"]:

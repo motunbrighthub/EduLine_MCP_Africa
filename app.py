@@ -26,7 +26,7 @@ DEFAULT_TOTAL_Q = 5
 CLUSTER_LIMITS = {"English": 8, "Mathematics": 8, "Physics": 8, "Chemistry": 8}
 MIN_CLUSTER = 0
 MCP_AVAILABLE = False
-GEMINI_MODEL_NAME = "gemini-1.5-flash"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 # AI Tutor Setup
 try:

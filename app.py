@@ -15,7 +15,7 @@ from google.genai import types
 # ==============================
 st.set_page_config(
     page_title="EDULINE Adaptive Quiz",
-    page_icon="📚",
+    page_icon="logo_faviscon1.png",
     layout="centered",
 )
 

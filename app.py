@@ -7,7 +7,8 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # ==============================
 # Config
@@ -27,6 +28,7 @@ CLUSTER_LIMITS = {"English": 8, "Mathematics": 8, "Physics": 8, "Chemistry": 8}
 MIN_CLUSTER = 0
 MCP_AVAILABLE = False
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
+gemini_client = None
 
 # AI Tutor Setup
 try:
@@ -36,11 +38,10 @@ try:
             api_key = st.secrets["GOOGLE_API_KEY"]
     
     if api_key:
-        genai.configure(api_key=api_key)
-        gemini_client = genai.GenerativeModel(GEMINI_MODEL_NAME)
+        gemini_client = genai.Client(api_key=api_key)
         MCP_AVAILABLE = True
     else:
-        st.warning("API_KEY not found. AI Tutor will be disabled.")
+        st.warning("GOOGLE_API_KEY not found. AI Tutor will be disabled.")
 except Exception as e:
     st.error(f"AI Tutor initialization failed: {e}")
     MCP_AVAILABLE = False
@@ -242,11 +243,15 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
     
     try:
         full_prompt = f"{system_prompt}\n\nStudent Question: {user_question}"
-        response = gemini_client.generate_content(
-            full_prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=1500, temperature=0.7)
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL_NAME,
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
+                max_output_tokens=1500,
+                temperature=0.7,
+            ),
         )
-        return response.text
+        return response.text or "Sorry, I couldn't generate a response."
     except Exception as e:
         return f"Sorry, I couldn't generate a response: {str(e)}"
 

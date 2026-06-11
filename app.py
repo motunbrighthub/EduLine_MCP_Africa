@@ -28,6 +28,11 @@ CLUSTER_LIMITS = {"English": 8, "Mathematics": 8, "Physics": 8, "Chemistry": 8}
 MIN_CLUSTER = 0
 MCP_AVAILABLE = False
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
+GEMINI_MODELS_TO_TRY = [
+    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+]
 gemini_client = None
 
 # AI Tutor Setup
@@ -157,6 +162,28 @@ def get_cluster_topic(subject: str, cluster_id: int) -> str:
         return CLUSTER_TOPICS[cluster_id][subject]
     return f"Cluster {cluster_id}"
 
+def call_gemini(prompt, config=None):
+    if gemini_client is None:
+        return "AI tutor is not available. Please set up GOOGLE_API_KEY."
+
+    for model in GEMINI_MODELS_TO_TRY:
+        try:
+            request_kwargs = {
+                "model": model,
+                "contents": prompt,
+            }
+            if config is not None:
+                request_kwargs["config"] = config
+
+            response = gemini_client.models.generate_content(**request_kwargs)
+            return response.text
+        except Exception as e:
+            if "503" in str(e) or "UNAVAILABLE" in str(e):
+                continue
+            raise e
+
+    return "⚠️ All models are currently busy. Please try again shortly."
+
 def reset_quiz_state(subject: str, total_q: int, mode: str = "normal", weak_only_list: List[int] = None):
     mid = CLUSTER_LIMITS.get(subject, 4) // 2
     start_cluster = mid if mode == "normal" else (weak_only_list[0] if weak_only_list else mid)
@@ -243,15 +270,14 @@ def get_ai_help(topic: str, subject: str, user_question: str = None, conversatio
     
     try:
         full_prompt = f"{system_prompt}\n\nStudent Question: {user_question}"
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL_NAME,
-            contents=full_prompt,
+        response_text = call_gemini(
+            full_prompt,
             config=types.GenerateContentConfig(
                 max_output_tokens=1500,
                 temperature=0.7,
             ),
         )
-        return response.text or "Sorry, I couldn't generate a response."
+        return response_text or "Sorry, I couldn't generate a response."
     except Exception as e:
         return f"Sorry, I couldn't generate a response: {str(e)}"
 
